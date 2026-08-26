@@ -177,7 +177,7 @@ elif menu == "🤖 Trợ lý AI Chấm bài tự động":
     st.subheader("🤖 Hệ thống AI Tự động chấm bài theo Đáp án chuẩn")
     st.markdown("Hệ thống đọc file đáp án, đối chiếu với bài làm của học sinh để chấm điểm và đưa ra nhận xét chi tiết.")
 
-    api_key_input = st.text_input("Nhập mã khóa API của thầy (hoặc để trống nếu dùng chế độ thông minh sẵn có):", type="password", placeholder="AQ... hoặc AIzaSy...")
+    api_key_input = st.text_input("AQ.Ab8RN6JgkmoEpkiqS6BRbQmTRkGsy2d_4XsaPT8yHZSvHvUcVQ", type="password", placeholder="AQ... hoặc AIzaSy...")
 
     if "answer_filename" not in st.session_state:
         st.session_state.answer_filename = None
@@ -222,7 +222,7 @@ elif menu == "🤖 Trợ lý AI Chấm bài tự động":
                         try:
                             import google.generativeai as genai
                             genai.configure(api_key=api_key_input.strip())
-                            model = genai.GenerativeModel('gemini-1.5-flash')
+                            model = genai.GenerativeModel('gemini-3.5-flash')
                             dung_api_that = True
                         except:
                             dung_api_that = False
