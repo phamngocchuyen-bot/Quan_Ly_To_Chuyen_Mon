@@ -5,19 +5,19 @@ from datetime import datetime
 
 # Cấu hình giao diện trang web
 st.set_page_config(
-    page_title="Hệ thống Quản lý Học tập & Chấm bài AI",
+    page_title="Hệ thống Quản lý Bài tập & Trợ lý AI Chấm bài",
     page_icon="📖",
     layout="wide"
 )
 
 SHEET_ID = "1eIVRRQhr3SUkMdlHB9Fy2_GmujTGFyJPejgGoxXNnJs"
 
-# Hàm đọc dữ liệu từ Google Sheets công khai
+# Ép toàn bộ dữ liệu đọc từ Google Sheets về dạng chuỗi (string) để chống mọi lỗi lệch kiểu dữ liệu
 @st.cache_data(ttl=60)
 def load_data(sheet_name):
     encoded_sheet_name = urllib.parse.quote(sheet_name)
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={encoded_sheet_name}"
-    return pd.read_csv(url)
+    return pd.read_csv(url, dtype=str)
 
 st.title("📖 Hệ thống Quản lý Bài tập & Trợ lý AI Chấm bài")
 st.markdown("Hệ thống giao bài, theo dõi học sinh nộp bài qua Form và hỗ trợ AI chấm điểm tự động.")
@@ -56,9 +56,9 @@ elif menu == "📚 Giao bài & Theo dõi nộp bài":
         if df_hs.empty or df_bt.empty:
             st.warning("Thầy vui lòng kiểm tra lại tab 'DanhSachHS' và 'GiaoBaiTap' trong Google Sheets đảm bảo đã có dữ liệu.")
         else:
-            # Chuẩn hóa tên cột để tránh lỗi viết hoa/thường hoặc có dấu
-            df_hs = df_hs.rename(columns=lambda x: x.strip())
-            df_bt = df_bt.rename(columns=lambda x: x.strip())
+            # Chuẩn hóa tên cột
+            df_hs = df_hs.rename(columns=lambda x: str(x).strip())
+            df_bt = df_bt.rename(columns=lambda x: str(x).strip())
             
             if 'Lớp' in df_hs.columns and 'Lop' not in df_hs.columns:
                 df_hs = df_hs.rename(columns={'Lớp': 'Lop'})
@@ -71,6 +71,10 @@ elif menu == "📚 Giao bài & Theo dõi nộp bài":
                 df_bt = df_bt.rename(columns={'Tên bài tập': 'TenBaiTap'})
             if 'Hạn nộp' in df_bt.columns and 'HanNop' not in df_bt.columns:
                 df_bt = df_bt.rename(columns={'Hạn nộp': 'HanNop'})
+
+            # Làm sạch dữ liệu cột Lớp
+            df_hs['Lop'] = df_hs['Lop'].str.replace('.0', '', regex=False).str.strip()
+            df_bt['Lop'] = df_bt['Lop'].str.replace('.0', '', regex=False).str.strip()
 
             # Kết hợp học sinh với bài tập dựa theo Lớp
             df_tong_hop = pd.merge(df_hs, df_bt, on='Lop', how='inner')
@@ -118,12 +122,12 @@ elif menu == "📚 Giao bài & Theo dõi nộp bài":
             
     except Exception as e:
         st.error(f"Lỗi hiển thị bảng tiến độ: {e}")
-# --- CHỨC NĂNG 3: TRỢ LÝ AI CHẤM BÀI TỰ ĐỘNG ---
+
+# --- CHỨC NĂNG 3: TRỢ LÝ AI CHẤM BÀI ---
 elif menu == "🤖 Trợ lý AI Chấm bài tự động":
     st.subheader("🤖 Hệ thống AI Tự động chấm bài theo Đáp án (Hỗ trợ PDF, Ảnh, Văn bản)")
     st.markdown("Hệ thống tự động quét bài học sinh từ Form và đối chiếu với file Đáp án chuẩn/Thang điểm do thầy tải lên.")
 
-    # Cho phép thầy tải lên file đáp án dạng PDF hoặc Hình ảnh (JPEG/PNG)
     answer_file = st.file_uploader(
         "Tải lên file Đáp án chuẩn / Thang điểm (Hỗ trợ: PDF, JPEG, PNG, DOCX)", 
         type=["pdf", "png", "jpg", "jpeg", "docx"]
@@ -138,7 +142,6 @@ elif menu == "🤖 Trợ lý AI Chấm bài tự động":
                 time.sleep(2.5)
             
             try:
-                # Đọc dữ liệu học sinh nộp bài từ Google Sheets (tab NopBaiHS)
                 df_nop_bai = load_data("NopBaiHS")
                 
                 if df_nop_bai.empty:
@@ -146,7 +149,6 @@ elif menu == "🤖 Trợ lý AI Chấm bài tự động":
                 else:
                     st.success(f"Đã đọc file đáp án `{answer_file.name}` và chấm thành công cho {len(df_nop_bai)} bài làm của học sinh!")
                     
-                    # Tạo bảng kết quả tự động chấm
                     danh_sach_ket_qua = []
                     for index, row in df_nop_bai.iterrows():
                         ten_hs = str(row.get('HoTen', row.iloc[1] if len(row) > 1 else f"Học sinh {index+1}")).strip()
@@ -162,8 +164,6 @@ elif menu == "🤖 Trợ lý AI Chấm bài tự động":
                         })
                     
                     st.dataframe(pd.DataFrame(danh_sach_ket_qua), use_container_width=True)
-                    
-                    st.info("💡 **Gợi ý:** Thầy có thể bấm vào link bài làm của từng em để đối chiếu chi tiết khi cần thiết.")
                     
             except Exception as e:
                 st.error(f"Lỗi kết nối hoặc đọc dữ liệu từ tab 'NopBaiHS': {e}")
