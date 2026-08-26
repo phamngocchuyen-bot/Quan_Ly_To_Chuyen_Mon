@@ -53,17 +53,27 @@ elif menu == "📝 Quản lý Nhiệm vụ":
         
         df_nv = load_data("NhiemVu")
         
-        # Hàm tự động cập nhật trạng thái thông minh
+        # Hàm tự động cập nhật trạng thái thông minh theo Cách 2
         def tu_dong_cap_nhat_trang_thai(row):
             trang_thai_hien_tai = str(row.get('TrangThai', '')).strip()
             
-            # Nếu bạn đã chủ động nhập "Hoàn thành" hoặc "Đã duyệt AI" trong Sheet thì giữ nguyên
-            if trang_thai_hien_tai in ["Hoàn thành", "Đã duyệt AI", "Đã nộp"]:
+            # 1. Nếu bạn đã chủ động nhập "Hoàn thành" hoặc "Đã duyệt AI" thì giữ nguyên
+            if trang_thai_hien_tai and trang_thai_hien_tai.lower() not in ['nan', 'none', '']:
                 return trang_thai_hien_tai
                 
-            # Nếu chưa có trạng thái, máy sẽ tự động tính toán dựa vào Hạn nộp
+            # 2. Tự động kiểm tra xem giáo viên đã có dán link sản phẩm chưa (có chứa http/https)
+            has_link = False
+            for col in row.index:
+                val = str(row[col])
+                if 'http://' in val or 'https://' in val:
+                    has_link = True
+                    break
+            
+            if has_link:
+                return "Đã nộp ✅"
+                
+            # 3. Nếu chưa có link, máy tự so sánh ngày hiện tại với Hạn nộp
             try:
-                # Đọc định dạng ngày tháng từ Google Sheet (ngày/tháng/năm)
                 ngay_het_han = datetime.strptime(str(row['HanNop']).strip(), '%d/%m/%Y')
                 ngay_hom_nay = datetime.now()
                 
