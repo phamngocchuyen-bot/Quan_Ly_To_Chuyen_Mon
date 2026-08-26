@@ -53,9 +53,11 @@ elif menu == "📚 Giao bài & Theo dõi nộp bài":
         df_bt = load_data("GiaoBaiTap")
         df_nop = load_data("NopBaiHS")
         
-        if df_hs.empty or df_bt.empty:
-            st.warning("Thầy vui lòng kiểm tra lại tab 'DanhSachHS' và 'GiaoBaiTap' trong Google Sheets đảm bảo đã có dữ liệu.")
-        else:
+        # --- BẬT HIỂN THỊ DỮ LIỆU GỐC ĐỂ KIỂM TRA ---
+        st.write("🔍 **Dữ liệu đọc được từ tab 'DanhSachHS':**", df_hs)
+        st.write("🔍 **Dữ liệu đọc được từ tab 'GiaoBaiTap':**", df_bt)
+        
+        if not df_hs.empty and not df_bt.empty:
             # Chuẩn hóa tên cột
             df_hs = df_hs.rename(columns=lambda x: str(x).strip())
             df_bt = df_bt.rename(columns=lambda x: str(x).strip())
@@ -72,57 +74,59 @@ elif menu == "📚 Giao bài & Theo dõi nộp bài":
             if 'Hạn nộp' in df_bt.columns and 'HanNop' not in df_bt.columns:
                 df_bt = df_bt.rename(columns={'Hạn nộp': 'HanNop'})
 
-            # Làm sạch dữ liệu cột Lớp
-            df_hs['Lop'] = df_hs['Lop'].str.replace('.0', '', regex=False).str.strip()
-            df_bt['Lop'] = df_bt['Lop'].str.replace('.0', '', regex=False).str.strip()
+            # Làm sạch cột Lớp
+            df_hs['Lop'] = df_hs['Lop'].astype(str).str.replace('.0', '', regex=False).str.strip()
+            df_bt['Lop'] = df_bt['Lop'].astype(str).str.replace('.0', '', regex=False).str.strip()
 
-            # Kết hợp học sinh với bài tập dựa theo Lớp
+            st.write("✅ **Cột 'Lop' sau khi làm sạch ở DanhSachHS:**", df_hs['Lop'].tolist())
+            st.write("✅ **Cột 'Lop' sau khi làm sạch ở GiaoBaiTap:**", df_bt['Lop'].tolist())
+
+            # Ghép nối dữ liệu
             df_tong_hop = pd.merge(df_hs, df_bt, on='Lop', how='inner')
             
-            # Hàm quét trạng thái cụ thể của từng học sinh
-            def xet_trang_thai(row):
-                ten_hs = str(row.get('HoTen', '')).strip()
-                ten_bai = str(row.get('TenBaiTap', '')).strip()
-                
-                da_nop = False
-                if not df_nop.empty:
-                    for _, nop_row in df_nop.iterrows():
-                        nop_ten = str(nop_row.get('HoTen', nop_row.get('Họ và tên', ''))).strip()
-                        nop_bai = str(nop_row.get('TenBaiTap', nop_row.get('Tên bài tập', ''))).strip()
-                        
-                        if ten_hs.lower() in nop_ten.lower() and ten_bai.lower() in nop_bai.lower():
-                            da_nop = True
-                            break
-                
-                if da_nop:
-                    return "Đã nộp ✅"
+            if not df_tong_hop.empty:
+                def xet_trang_thai(row):
+                    ten_hs = str(row.get('HoTen', '')).strip()
+                    ten_bai = str(row.get('TenBaiTap', '')).strip()
                     
-                try:
-                    ngay_het_han = datetime.strptime(str(row.get('HanNop', '')).strip(), '%d/%m/%Y')
-                    if datetime.now() > ngay_het_han:
-                        return "Quá hạn ⚠️"
-                    else:
+                    da_nop = False
+                    if not df_nop.empty:
+                        for _, nop_row in df_nop.iterrows():
+                            nop_ten = str(nop_row.get('HoTen', nop_row.get('Họ và tên', ''))).strip()
+                            nop_bai = str(nop_row.get('TenBaiTap', nop_row.get('Tên bài tập', ''))).strip()
+                            
+                            if ten_hs.lower() in nop_ten.lower() and ten_bai.lower() in nop_bai.lower():
+                                da_nop = True
+                                break
+                    
+                    if da_nop:
+                        return "Đã nộp ✅"
+                        
+                    try:
+                        ngay_het_han = datetime.strptime(str(row.get('HanNop', '')).strip(), '%d/%m/%Y')
+                        if datetime.now() > ngay_het_han:
+                            return "Quá hạn ⚠️"
+                        else:
+                            return "Đang làm ⏳"
+                    except:
                         return "Đang làm ⏳"
-                except:
-                    return "Đang làm ⏳"
 
-            df_tong_hop['TrangThai'] = df_tong_hop.apply(xet_trang_thai, axis=1)
-            
-            # Đổi tên cột hiển thị tiếng Việt đẹp mắt
-            cols_show = [c for c in ['Lop', 'HoTen', 'TenBaiTap', 'HanNop', 'TrangThai'] if c in df_tong_hop.columns]
-            df_hien_thi = df_tong_hop[cols_show].rename(columns={
-                'Lop': 'Lớp',
-                'HoTen': 'Họ và tên',
-                'TenBaiTap': 'Tên bài tập',
-                'HanNop': 'Hạn nộp',
-                'TrangThai': 'Trạng thái'
-            })
-            
-            st.dataframe(df_hien_thi, use_container_width=True)
+                df_tong_hop['TrangThai'] = df_tong_hop.apply(xet_trang_thai, axis=1)
+                
+                cols_show = [c for c in ['Lop', 'HoTen', 'TenBaiTap', 'HanNop', 'TrangThai'] if c in df_tong_hop.columns]
+                df_hien_thi = df_tong_hop[cols_show].rename(columns={
+                    'Lop': 'Lớp',
+                    'HoTen': 'Họ và tên',
+                    'TenBaiTap': 'Tên bài tập',
+                    'HanNop': 'Hạn nộp',
+                    'TrangThai': 'Trạng thái'
+                })
+                
+                st.markdown("### 📋 Bảng kết quả tổng hợp:")
+                st.dataframe(df_hien_thi, use_container_width=True)
             
     except Exception as e:
         st.error(f"Lỗi hiển thị bảng tiến độ: {e}")
-
 # --- CHỨC NĂNG 3: TRỢ LÝ AI CHẤM BÀI ---
 elif menu == "🤖 Trợ lý AI Chấm bài tự động":
     st.subheader("🤖 Hệ thống AI Tự động chấm bài theo Đáp án (Hỗ trợ PDF, Ảnh, Văn bản)")
