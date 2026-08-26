@@ -53,11 +53,9 @@ elif menu == "📚 Giao bài & Theo dõi nộp bài":
         df_bt = load_data("GiaoBaiTap")
         df_nop = load_data("NopBaiHS")
         
-        # --- BẬT HIỂN THỊ DỮ LIỆU GỐC ĐỂ KIỂM TRA ---
-        st.write("🔍 **Dữ liệu đọc được từ tab 'DanhSachHS':**", df_hs)
-        st.write("🔍 **Dữ liệu đọc được từ tab 'GiaoBaiTap':**", df_bt)
-        
-        if not df_hs.empty and not df_bt.empty:
+        if df_hs.empty or df_bt.empty:
+            st.warning("Thầy vui lòng kiểm tra lại tab 'DanhSachHS' và 'GiaoBaiTap' trong Google Sheets đảm bảo đã có dữ liệu.")
+        else:
             # Chuẩn hóa tên cột
             df_hs = df_hs.rename(columns=lambda x: str(x).strip())
             df_bt = df_bt.rename(columns=lambda x: str(x).strip())
@@ -78,13 +76,12 @@ elif menu == "📚 Giao bài & Theo dõi nộp bài":
             df_hs['Lop'] = df_hs['Lop'].astype(str).str.replace('.0', '', regex=False).str.strip()
             df_bt['Lop'] = df_bt['Lop'].astype(str).str.replace('.0', '', regex=False).str.strip()
 
-            st.write("✅ **Cột 'Lop' sau khi làm sạch ở DanhSachHS:**", df_hs['Lop'].tolist())
-            st.write("✅ **Cột 'Lop' sau khi làm sạch ở GiaoBaiTap:**", df_bt['Lop'].tolist())
-
             # Ghép nối dữ liệu
             df_tong_hop = pd.merge(df_hs, df_bt, on='Lop', how='inner')
             
-            if not df_tong_hop.empty:
+            if df_tong_hop.empty:
+                st.warning("⚠️ Không tìm thấy điểm chung (Lớp) giữa danh sách học sinh và bài tập được giao. Thầy hãy kiểm tra lại cột Lớp ở 2 tab nhé!")
+            else:
                 def xet_trang_thai(row):
                     ten_hs = str(row.get('HoTen', '')).strip()
                     ten_bai = str(row.get('TenBaiTap', '')).strip()
@@ -122,11 +119,11 @@ elif menu == "📚 Giao bài & Theo dõi nộp bài":
                     'TrangThai': 'Trạng thái'
                 })
                 
-                st.markdown("### 📋 Bảng kết quả tổng hợp:")
                 st.dataframe(df_hien_thi, use_container_width=True)
             
     except Exception as e:
         st.error(f"Lỗi hiển thị bảng tiến độ: {e}")
+
 # --- CHỨC NĂNG 3: TRỢ LÝ AI CHẤM BÀI ---
 elif menu == "🤖 Trợ lý AI Chấm bài tự động":
     st.subheader("🤖 Hệ thống AI Tự động chấm bài theo Đáp án (Hỗ trợ PDF, Ảnh, Văn bản)")
@@ -168,6 +165,6 @@ elif menu == "🤖 Trợ lý AI Chấm bài tự động":
                         })
                     
                     st.dataframe(pd.DataFrame(danh_sach_ket_qua), use_container_width=True)
-                    
+                        
             except Exception as e:
                 st.error(f"Lỗi kết nối hoặc đọc dữ liệu từ tab 'NopBaiHS': {e}")
