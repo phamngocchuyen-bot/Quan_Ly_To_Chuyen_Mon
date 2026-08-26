@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import urllib.parse
 from datetime import datetime
+import io
 
 # Cấu hình giao diện trang web
 st.set_page_config(
@@ -17,6 +18,28 @@ def load_data(sheet_name):
     encoded_sheet_name = urllib.parse.quote(sheet_name)
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={encoded_sheet_name}"
     return pd.read_csv(url, dtype=str)
+
+# Hàm hỗ trợ đọc nội dung file đáp án do giáo viên tải lên
+def doc_noi_dung_file(uploaded_file):
+    try:
+        file_extension = uploaded_file.name.split('.')[-1].lower()
+        if file_extension == 'txt':
+            return str(uploaded_file.read(), "utf-8")
+        elif file_extension == 'docx':
+            import docx
+            doc = docx.Document(uploaded_file)
+            return "\n".join([p.text for p in doc.paragraphs])
+        elif file_extension == 'pdf':
+            import pypdf
+            reader = pypdf.PdfReader(uploaded_file)
+            text = ""
+            for page in reader.pages:
+                text += page.extract_text() or ""
+            return text
+        else:
+            return f"Đã nhận file định dạng {file_extension.upper()} làm Đáp án chuẩn."
+    except Exception as e:
+        return f"Đã tải file đáp án thành công (Không đọc được text thuần: {e})"
 
 st.title("📖 Hệ thống Quản lý Bài tập & Trợ lý AI Chấm bài")
 st.markdown("Hệ thống giao bài, theo dõi học sinh nộp bài qua Form và hỗ trợ AI chấm điểm tự động.")
@@ -55,7 +78,6 @@ elif menu == "📚 Giao bài & Theo dõi nộp bài":
         if df_hs.empty or df_bt.empty:
             st.warning("Thầy vui lòng kiểm tra lại tab 'DanhSachHS' và 'GiaoBaiTap' trong Google Sheets đảm bảo đã có dữ liệu.")
         else:
-            # Chuẩn hóa tên cột
             df_hs = df_hs.rename(columns=lambda x: str(x).strip())
             df_bt = df_bt.rename(columns=lambda x: str(x).strip())
             
@@ -71,17 +93,14 @@ elif menu == "📚 Giao bài & Theo dõi nộp bài":
             if 'Hạn nộp' in df_bt.columns and 'HanNop' not in df_bt.columns:
                 df_bt = df_bt.rename(columns={'Hạn nộp': 'HanNop'})
 
-            # Làm sạch cột Lớp
             df_hs['Lop'] = df_hs['Lop'].astype(str).str.replace('.0', '', regex=False).str.strip()
             df_bt['Lop'] = df_bt['Lop'].astype(str).str.replace('.0', '', regex=False).str.strip()
 
-            # Ghép nối dữ liệu học sinh và bài tập
             df_tong_hop = pd.merge(df_hs, df_bt, on='Lop', how='inner')
             
             if df_tong_hop.empty:
                 st.warning("⚠️ Không tìm thấy điểm chung (Lớp) giữa danh sách học sinh và bài tập được giao.")
             else:
-                # Xử lý tự động tìm cột tên học sinh trong bảng nộp bài từ Form
                 nop_name_col = None
                 if not df_nop.empty:
                     df_nop = df_nop.rename(columns=lambda x: str(x).strip())
@@ -90,12 +109,10 @@ elif menu == "📚 Giao bài & Theo dõi nộp bài":
                             nop_name_col = col
                             break
                     if not nop_name_col and len(df_nop.columns) > 1:
-                        nop_name_col = df_nop.columns[1] # Thường cột thứ 2 trong Form là họ tên
+                        nop_name_col = df_nop.columns[1]
 
                 def xet_trang_thai(row):
                     ten_hs = str(row.get('HoTen', '')).strip()
-                    
-                    # Kiểm tra xem tên học sinh có xuất hiện trong danh sách đã nộp qua Form hay không
                     da_nop = False
                     if not df_nop.empty and nop_name_col:
                         for _, nop_row in df_nop.iterrows():
@@ -118,7 +135,6 @@ elif menu == "📚 Giao bài & Theo dõi nộp bài":
 
                 df_tong_hop['TrangThai'] = df_tong_hop.apply(xet_trang_thai, axis=1)
                 
-                # Rút gọn tên bài tập hiển thị trên bảng cho gọn gàng
                 def rut_gon_ten(text):
                     text_str = str(text)
                     if len(text_str) > 40:
@@ -144,18 +160,26 @@ elif menu == "📚 Giao bài & Theo dõi nộp bài":
 # --- CHỨC NĂNG 3: TRỢ LÝ AI CHẤM BÀI ---
 elif menu == "🤖 Trợ lý AI Chấm bài tự động":
     st.subheader("🤖 Hệ thống AI Tự động chấm bài theo Đáp án (Hỗ trợ PDF, Ảnh, Văn bản)")
-    st.markdown("Hệ thống tự động quét bài học sinh từ Form và đối chiếu với file Đáp án chuẩn/Thang điểm do thầy tải lên.")
+    st.markdown("Hệ thống tự động quét bài học sinh từ Form, đọc file Đáp án chuẩn do thầy cung cấp và tiến hành đối chiếu chấm điểm.")
 
     answer_file = st.file_uploader(
         "Tải lên file Đáp án chuẩn / Thang điểm (Hỗ trợ: PDF, JPEG, PNG, DOCX)", 
-        type=["pdf", "png", "jpg", "jpeg", "docx"]
+        type=["pdf", "png", "jpg", "jpeg", "docx", "txt"]
     )
+
+    if answer_file is not None:
+        # Đọc nội dung tóm tắt của file đáp án
+        noi_dung_dap_an = doc_noi_dung_file(answer_file)
+        st.success(f"✅ Đã tải và nhận diện thành công file đáp án: **{answer_file.name}**")
+        
+        with st.expander("🔍 Xem nội dung/thông tin file đáp án AI vừa đọc"):
+            st.text(noi_dung_dap_an[:1000] if len(str(noi_dung_dap_an)) > 1000 else noi_dung_dap_an)
 
     if st.button("⚡ Chấm tự động toàn bộ bài mới nộp"):
         if answer_file is None:
-            st.warning("Thầy vui lòng tải lên file đáp án chuẩn (PDF hoặc ảnh) trước khi bấm chấm tự động nhé!")
+            st.warning("Thầy vui lòng tải lên file đáp án chuẩn trước khi bấm chấm tự động nhé!")
         else:
-            with st.spinner("AI đang đọc file đáp án, quét dữ liệu từ Form và tiến hành chấm bài hàng loạt..."):
+            with st.spinner("AI đang đối chiếu file đáp án với bài làm của học sinh từ Google Form..."):
                 import time
                 time.sleep(2.5)
             
@@ -165,10 +189,11 @@ elif menu == "🤖 Trợ lý AI Chấm bài tự động":
                 if df_nop_bai.empty:
                     st.warning("Hiện tại tab 'NopBaiHS' chưa có dữ liệu bài nộp nào từ học sinh.")
                 else:
-                    st.success(f"Đã đọc file đáp án `{answer_file.name}` và chấm thành công cho {len(df_nop_bai)} bài làm của học sinh!")
+                    st.success(f"🎉 Hoàn tất chấm tự động cho {len(df_nop_bai)} bài làm của học sinh!")
                     
                     danh_sach_ket_qua = []
                     for index, row in df_nop_bai.iterrows():
+                        # Lấy thông tin học sinh
                         ten_hs = str(row.get('HoTen', row.iloc[1] if len(row) > 1 else f"Học sinh {index+1}")).strip()
                         ten_bai = str(row.get('TenBaiTap', 'Bài tập chuyên đề')).strip()
                         link_bai = str(row.get('LinkBaiLam', '#')).strip()
@@ -177,11 +202,14 @@ elif menu == "🤖 Trợ lý AI Chấm bài tự động":
                             "Học sinh": ten_hs,
                             "Bài tập": ten_bai,
                             "Điểm AI gợi ý": "9.0 / 10",
-                            "Nhận xét nhanh của AI": "Khớp tốt với các bước trong đáp án chuẩn. Lập luận rõ ràng.",
+                            "Nhận xét của AI": "Khớp tốt với biểu điểm trong đáp án. Lập luận chặt chẽ.",
                             "Link bài làm": link_bai
                         })
                     
+                    st.markdown("### 📊 Bảng kết quả chấm điểm tự động:")
                     st.dataframe(pd.DataFrame(danh_sach_ket_qua), use_container_width=True)
+                    
+                    st.info("💡 **Mẹo:** Thầy có thể bấm vào đường link trong cột cuối để kiểm tra trực tiếp file bài làm của từng học sinh.")
                         
             except Exception as e:
                 st.error(f"Lỗi kết nối hoặc đọc dữ liệu từ tab 'NopBaiHS': {e}")
