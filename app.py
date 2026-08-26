@@ -51,7 +51,7 @@ elif menu == "📝 Quản lý Nhiệm vụ":
         import pandas as pd
         from datetime import datetime
         
-        df_nv = load_data("NhiemVu")
+        df_nv = load_data("Câu trả lời biểu mẫu 1")
         
         # Hàm tự động cập nhật trạng thái thông minh theo Cách 2
         def tu_dong_cap_nhat_trang_thai(row):
