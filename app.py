@@ -58,50 +58,16 @@ elif menu == "📅 Thời khóa biểu & Giờ dạy":
 elif menu == "📝 Quản lý Nhiệm vụ":
     st.subheader("Theo dõi tiến độ tự động: Ra đề, Chuyên đề, Soạn bài")
     try:
-        import pandas as pd
-        from datetime import datetime
+        df_nv = load_data("NopBai")
         
-        df_nv = load_data("Cautraloibieumau1")
-        
-        # Hàm tự động cập nhật trạng thái thông minh theo Cách 2
-        def tu_dong_cap_nhat_trang_thai(row):
-            trang_thai_hien_tai = str(row.get('TrangThai', '')).strip()
+        # Tự động thêm cột Trạng thái vào bảng dữ liệu từ Form
+        if not df_nv.empty:
+            df_nv['Trạng thái'] = "Đã nộp ✅"
             
-            # 1. Nếu bạn đã chủ động nhập "Hoàn thành" hoặc "Đã duyệt AI" thì giữ nguyên
-            if trang_thai_hien_tai and trang_thai_hien_tai.lower() not in ['nan', 'none', '']:
-                return trang_thai_hien_tai
-                
-            # 2. Tự động kiểm tra xem giáo viên đã có dán link sản phẩm chưa (có chứa http/https)
-            has_link = False
-            for col in row.index:
-                val = str(row[col])
-                if 'http://' in val or 'https://' in val:
-                    has_link = True
-                    break
-            
-            if has_link:
-                return "Đã nộp ✅"
-                
-            # 3. Nếu chưa có link, máy tự so sánh ngày hiện tại với Hạn nộp
-            try:
-                ngay_het_han = datetime.strptime(str(row['HanNop']).strip(), '%d/%m/%Y')
-                ngay_hom_nay = datetime.now()
-                
-                if ngay_hom_nay > ngay_het_han:
-                    return "Quá hạn ⚠️"
-                else:
-                    return "Đang làm ⏳"
-            except:
-                return "Đang làm ⏳"
-
-        # Áp dụng hàm tự động cho toàn bộ bảng
-        df_nv['TrangThai'] = df_nv.apply(tu_dong_cap_nhat_trang_thai, axis=1)
-        
         st.dataframe(df_nv, use_container_width=True)
         
     except Exception as e:
         st.error(f"Lỗi hiển thị dữ liệu: {e}")
-
 # --- CHỨC NĂNG 4: TRỢ LÝ AI ---
 elif menu == "🤖 Trợ lý AI Kiểm tra tài liệu":
     st.subheader("Trợ lý AI tự động rà soát đề thi và bài soạn")
