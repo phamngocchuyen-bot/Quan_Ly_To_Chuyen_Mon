@@ -46,12 +46,41 @@ elif menu == "📅 Thời khóa biểu & Giờ dạy":
 
 # --- CHỨC NĂNG 3: QUẢN LÝ NHIỆM VỤ ---
 elif menu == "📝 Quản lý Nhiệm vụ":
-    st.subheader("Theo dõi tiến độ: Ra đề, Chuyên đề, Soạn bài (Đọc từ Sheet: NhiemVu)")
+    st.subheader("Theo dõi tiến độ tự động: Ra đề, Chuyên đề, Soạn bài")
     try:
+        import pandas as pd
+        from datetime import datetime
+        
         df_nv = load_data("NhiemVu")
+        
+        # Hàm tự động cập nhật trạng thái thông minh
+        def tu_dong_cap_nhat_trang_thai(row):
+            trang_thai_hien_tai = str(row.get('TrangThai', '')).strip()
+            
+            # Nếu bạn đã chủ động nhập "Hoàn thành" hoặc "Đã duyệt AI" trong Sheet thì giữ nguyên
+            if trang_thai_hien_tai in ["Hoàn thành", "Đã duyệt AI", "Đã nộp"]:
+                return trang_thai_hien_tai
+                
+            # Nếu chưa có trạng thái, máy sẽ tự động tính toán dựa vào Hạn nộp
+            try:
+                # Đọc định dạng ngày tháng từ Google Sheet (ngày/tháng/năm)
+                ngay_het_han = datetime.strptime(str(row['HanNop']).strip(), '%d/%m/%Y')
+                ngay_hom_nay = datetime.now()
+                
+                if ngay_hom_nay > ngay_het_han:
+                    return "Quá hạn ⚠️"
+                else:
+                    return "Đang làm ⏳"
+            except:
+                return "Đang làm ⏳"
+
+        # Áp dụng hàm tự động cho toàn bộ bảng
+        df_nv['TrangThai'] = df_nv.apply(tu_dong_cap_nhat_trang_thai, axis=1)
+        
         st.dataframe(df_nv, use_container_width=True)
+        
     except Exception as e:
-        st.error(f"Không thể đọc dữ liệu từ tab 'NhiemVu'. Hãy kiểm tra lại tên tab. Lỗi: {e}")
+        st.error(f"Lỗi hiển thị dữ liệu: {e}")
 
 # --- CHỨC NĂNG 4: TRỢ LÝ AI ---
 elif menu == "🤖 Trợ lý AI Kiểm tra tài liệu":
