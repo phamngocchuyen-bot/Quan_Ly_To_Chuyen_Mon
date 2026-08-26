@@ -56,14 +56,59 @@ elif menu == "📅 Thời khóa biểu & Giờ dạy":
 
 # --- CHỨC NĂNG 3: QUẢN LÝ NHIỆM VỤ ---
 elif menu == "📝 Quản lý Nhiệm vụ":
-    st.subheader("Theo dõi tiến độ tự động: Ra đề, Chuyên đề, Soạn bài")
+    st.subheader("Theo dõi tiến độ tự động")
+    
+    if st.button("🔄 Làm mới dữ liệu"):
+        st.cache_data.clear()
+        st.rerun()
+
     try:
-        df_nv = load_data("NopBai")
+        import pandas as pd
+        from datetime import datetime
         
-        # Tự động thêm cột Trạng thái vào bảng dữ liệu từ Form
-        if not df_nv.empty:
-            df_nv['Trạng thái'] = "Đã nộp ✅"
+        # Đọc dữ liệu phân công (NhiemVu) và danh sách nộp từ Form (Cautraloibieumau1)
+        df_nv = load_data("NhiemVu")
+        df_form = load_data("Cautraloibieumau1")
+        
+        # Hàm tự động quét trạng thái
+        def xu_ly_dong_bo(row):
+            ten_gv = str(row.get('HoTen', '')).strip()
             
+            # Kiểm tra xem giáo viên đã nộp bài qua Form chưa
+            da_nop = False
+            if not df_form.empty:
+                for _, form_row in df_form.iterrows():
+                    ten_form = str(form_row.get('Họ và tên', '')).strip()
+                    if ten_gv.lower() in ten_form.lower() or ten_form.lower() in ten_gv.lower():
+                        da_nop = True
+                        break
+            
+            if da_nop:
+                row['TrangThai'] = "Đã nộp ✅"
+                return row
+                
+            # Nếu chưa nộp, tính toán dựa vào hạn nộp
+            trang_thai_hien_tai = str(row.get('TrangThai', '')).strip()
+            if trang_thai_hien_tai and trang_thai_hien_tai.lower() not in ['nan', 'none', '']:
+                return row 
+                
+            try:
+                ngay_het_han = datetime.strptime(str(row['HanNop']).strip(), '%d/%m/%Y')
+                if datetime.now() > ngay_het_han:
+                    row['TrangThai'] = "Quá hạn ⚠️"
+                else:
+                    row['TrangThai'] = "Đang làm ⏳"
+            except:
+                row['TrangThai'] = "Đang làm ⏳"
+                
+            return row
+
+        if not df_nv.empty:
+            df_nv = df_nv.apply(xu_ly_dong_bo, axis=1)
+            # Tự động lược bỏ cột Link nếu lỡ có trong Sheet để giao diện gọn nhất
+            if 'LinkNop' in df_nv.columns:
+                df_nv = df_nv.drop(columns=['LinkNop'])
+                
         st.dataframe(df_nv, use_container_width=True)
         
     except Exception as e:
