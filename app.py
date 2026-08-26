@@ -12,7 +12,6 @@ st.set_page_config(
 
 SHEET_ID = "1eIVRRQhr3SUkMdlHB9Fy2_GmujTGFyJPejgGoxXNnJs"
 
-# Ép toàn bộ dữ liệu đọc từ Google Sheets về dạng chuỗi (string) để chống mọi lỗi lệch kiểu dữ liệu
 @st.cache_data(ttl=60)
 def load_data(sheet_name):
     encoded_sheet_name = urllib.parse.quote(sheet_name)
@@ -80,7 +79,7 @@ elif menu == "📚 Giao bài & Theo dõi nộp bài":
             df_tong_hop = pd.merge(df_hs, df_bt, on='Lop', how='inner')
             
             if df_tong_hop.empty:
-                st.warning("⚠️ Không tìm thấy điểm chung (Lớp) giữa danh sách học sinh và bài tập được giao. Thầy hãy kiểm tra lại cột Lớp ở 2 tab nhé!")
+                st.warning("⚠️ Không tìm thấy điểm chung (Lớp) giữa danh sách học sinh và bài tập được giao.")
             else:
                 def xet_trang_thai(row):
                     ten_hs = str(row.get('HoTen', '')).strip()
@@ -110,11 +109,20 @@ elif menu == "📚 Giao bài & Theo dõi nộp bài":
 
                 df_tong_hop['TrangThai'] = df_tong_hop.apply(xet_trang_thai, axis=1)
                 
-                cols_show = [c for c in ['Lop', 'HoTen', 'TenBaiTap', 'HanNop', 'TrangThai'] if c in df_tong_hop.columns]
+                # Rút gọn tên bài tập nếu quá dài (chỉ hiển thị tối đa 40 ký tự đầu + ...)
+                def rut_gon_ten(text):
+                    text_str = str(text)
+                    if len(text_str) > 40:
+                        return text_str[:40] + "..."
+                    return text_str
+                
+                df_tong_hop['TenBaiTap_Short'] = df_tong_hop['TenBaiTap'].apply(rut_gon_ten)
+                
+                cols_show = [c for c in ['Lop', 'HoTen', 'TenBaiTap_Short', 'HanNop', 'TrangThai'] if c in df_tong_hop.columns]
                 df_hien_thi = df_tong_hop[cols_show].rename(columns={
                     'Lop': 'Lớp',
                     'HoTen': 'Họ và tên',
-                    'TenBaiTap': 'Tên bài tập',
+                    'TenBaiTap_Short': 'Tên bài tập',
                     'HanNop': 'Hạn nộp',
                     'TrangThai': 'Trạng thái'
                 })
