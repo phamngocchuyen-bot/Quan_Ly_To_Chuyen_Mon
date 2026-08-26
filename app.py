@@ -42,49 +42,82 @@ if menu == "👥 Danh sách học sinh":
 
 # --- CHỨC NĂNG 2: GIAO BÀI & THEO DÕI NỘP BÀI ---
 elif menu == "📚 Giao bài & Theo dõi nộp bài":
-    st.subheader("📚 Theo dõi tiến độ làm bài và nộp bài của học sinh")
+    st.subheader("📚 Bảng theo dõi tiến độ chi tiết từng học sinh")
     
     if st.button("🔄 Làm mới dữ liệu"):
         st.cache_data.clear()
         st.rerun()
 
     try:
+        df_hs = load_data("DanhSachHS")
         df_bt = load_data("GiaoBaiTap")
         df_nop = load_data("NopBaiHS")
         
-        def kiem_tra_nop_bai(row):
-            ten_hs = str(row.get('HoTen', '')).strip()
-            ten_bai = str(row.get('TenBaiTap', '')).strip()
+        if df_hs.empty or df_bt.empty:
+            st.warning("Thầy vui lòng kiểm tra lại tab 'DanhSachHS' và 'GiaoBaiTap' trong Google Sheets đảm bảo đã có dữ liệu.")
+        else:
+            # Chuẩn hóa tên cột để tránh lỗi viết hoa/thường hoặc có dấu
+            df_hs = df_hs.rename(columns=lambda x: x.strip())
+            df_bt = df_bt.rename(columns=lambda x: x.strip())
             
-            da_nop = False
-            if not df_nop.empty:
-                for _, nop_row in df_nop.iterrows():
-                    ten_form_hs = str(nop_row.get('Họ và tên', '')).strip()
-                    ten_form_bai = str(nop_row.get('Tên bài tập', '')).strip()
-                    if ten_hs.lower() in ten_form_hs.lower() and ten_bai.lower() in ten_form_bai.lower():
-                        da_nop = True
-                        break
-            
-            if da_nop:
-                return "Đã nộp ✅"
+            if 'Lớp' in df_hs.columns and 'Lop' not in df_hs.columns:
+                df_hs = df_hs.rename(columns={'Lớp': 'Lop'})
+            if 'Họ và tên' in df_hs.columns and 'HoTen' not in df_hs.columns:
+                df_hs = df_hs.rename(columns={'Họ và tên': 'HoTen'})
                 
-            try:
-                ngay_het_han = datetime.strptime(str(row['HanNop']).strip(), '%d/%m/%Y')
-                if datetime.now() > ngay_het_han:
-                    return "Quá hạn ⚠️"
-                else:
-                    return "Đang làm ⏳"
-            except:
-                return "Đang làm ⏳"
+            if 'Lớp' in df_bt.columns and 'Lop' not in df_bt.columns:
+                df_bt = df_bt.rename(columns={'Lớp': 'Lop'})
+            if 'Tên bài tập' in df_bt.columns and 'TenBaiTap' not in df_bt.columns:
+                df_bt = df_bt.rename(columns={'Tên bài tập': 'TenBaiTap'})
+            if 'Hạn nộp' in df_bt.columns and 'HanNop' not in df_bt.columns:
+                df_bt = df_bt.rename(columns={'Hạn nộp': 'HanNop'})
 
-        if not df_bt.empty:
-            df_bt['TrangThai'] = df_bt.apply(kiem_tra_nop_bai, axis=1)
+            # Kết hợp học sinh với bài tập dựa theo Lớp
+            df_tong_hop = pd.merge(df_hs, df_bt, on='Lop', how='inner')
             
-        st.dataframe(df_bt, use_container_width=True)
-        
-    except Exception as e:
-        st.error(f"Lỗi tải dữ liệu bài tập hoặc bài nộp: {e}")
+            # Hàm quét trạng thái cụ thể của từng học sinh
+            def xet_trang_thai(row):
+                ten_hs = str(row.get('HoTen', '')).strip()
+                ten_bai = str(row.get('TenBaiTap', '')).strip()
+                
+                da_nop = False
+                if not df_nop.empty:
+                    for _, nop_row in df_nop.iterrows():
+                        nop_ten = str(nop_row.get('HoTen', nop_row.get('Họ và tên', ''))).strip()
+                        nop_bai = str(nop_row.get('TenBaiTap', nop_row.get('Tên bài tập', ''))).strip()
+                        
+                        if ten_hs.lower() in nop_ten.lower() and ten_bai.lower() in nop_bai.lower():
+                            da_nop = True
+                            break
+                
+                if da_nop:
+                    return "Đã nộp ✅"
+                    
+                try:
+                    ngay_het_han = datetime.strptime(str(row.get('HanNop', '')).strip(), '%d/%m/%Y')
+                    if datetime.now() > ngay_het_han:
+                        return "Quá hạn ⚠️"
+                    else:
+                        return "Đang làm ⏳"
+                except:
+                    return "Đang làm ⏳"
 
+            df_tong_hop['TrangThai'] = df_tong_hop.apply(xet_trang_thai, axis=1)
+            
+            # Đổi tên cột hiển thị tiếng Việt đẹp mắt
+            cols_show = [c for c in ['Lop', 'HoTen', 'TenBaiTap', 'HanNop', 'TrangThai'] if c in df_tong_hop.columns]
+            df_hien_thi = df_tong_hop[cols_show].rename(columns={
+                'Lop': 'Lớp',
+                'HoTen': 'Họ và tên',
+                'TenBaiTap': 'Tên bài tập',
+                'HanNop': 'Hạn nộp',
+                'TrangThai': 'Trạng thái'
+            })
+            
+            st.dataframe(df_hien_thi, use_container_width=True)
+            
+    except Exception as e:
+        st.error(f"Lỗi hiển thị bảng tiến độ: {e}")
 # --- CHỨC NĂNG 3: TRỢ LÝ AI CHẤM BÀI TỰ ĐỘNG ---
 elif menu == "🤖 Trợ lý AI Chấm bài tự động":
     st.subheader("🤖 Hệ thống AI Tự động chấm bài theo Đáp án (Hỗ trợ PDF, Ảnh, Văn bản)")
