@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import urllib.parse  # Thư viện dùng để xử lý khoảng trắng trong URL
 
 # Cấu hình giao diện trang web
 st.set_page_config(
@@ -7,6 +8,15 @@ st.set_page_config(
     page_icon="📚",
     layout="wide"
 )
+
+SHEET_ID = "1eIVRRQhr3SUkMdlHB9Fy2_GmujTGFyJPejgGoxXNnJs"
+
+# Hàm đọc dữ liệu từ Google Sheets công khai (đã xử lý mã hóa tên tab có khoảng trắng)
+@st.cache_data(ttl=60)
+def load_data(sheet_name):
+    encoded_sheet_name = urllib.parse.quote(sheet_name) # Mã hóa khoảng trắng thành %20
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={encoded_sheet_name}"
+    return pd.read_csv(url)
 
 # THAY ID GOOGLE SHEET CỦA BẠN VÀO ĐÂY:
 SHEET_ID = "1eIVRRQhr3SUkMdlHB9Fy2_GmujTGFyJPejgGoxXNnJs"
