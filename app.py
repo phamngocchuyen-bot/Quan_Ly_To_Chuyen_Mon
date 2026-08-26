@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
-import urllib.parse  # Thư viện dùng để xử lý khoảng trắng trong URL
+import urllib.parse
+from datetime import datetime
 
 # Cấu hình giao diện trang web
 st.set_page_config(
@@ -11,29 +12,20 @@ st.set_page_config(
 
 SHEET_ID = "1eIVRRQhr3SUkMdlHB9Fy2_GmujTGFyJPejgGoxXNnJs"
 
-# Hàm đọc dữ liệu từ Google Sheets công khai (đã xử lý mã hóa tên tab có khoảng trắng)
+# Hàm đọc dữ liệu từ Google Sheets công khai
 @st.cache_data(ttl=60)
 def load_data(sheet_name):
-    encoded_sheet_name = urllib.parse.quote(sheet_name) # Mã hóa khoảng trắng thành %20
+    encoded_sheet_name = urllib.parse.quote(sheet_name)
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={encoded_sheet_name}"
     return pd.read_csv(url)
 
-# THAY ID GOOGLE SHEET CỦA BẠN VÀO ĐÂY:
-SHEET_ID = "1eIVRRQhr3SUkMdlHB9Fy2_GmujTGFyJPejgGoxXNnJs"
-
-# Hàm đọc dữ liệu từ Google Sheets công khai
-@st.cache_data(ttl=60) # Tự động làm mới dữ liệu sau mỗi 60 giây
-def load_data(sheet_name):
-    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={sheet_name}"
-    return pd.read_csv(url)
-
 st.title("📊 Hệ thống Quản lý Tổ Chuyên Môn Toán - Tin")
-st.markdown("Trang web điều hành, theo dõi thời khóa biểu, tiến độ ra đề, chuyên đề và soạn bài (Đồng bộ trực tiếp từ Google Sheets).")
+st.markdown("Trang web điều hành, theo dõi tiến độ ra đề, chuyên đề và soạn bài (Đồng bộ trực tiếp từ Google Sheets).")
 
-# Menu bên trái (Sidebar)
+# Menu bên trái (Sidebar) - Đã bỏ Chức năng 2
 menu = st.sidebar.selectbox(
     "Chọn chức năng quản lý", 
-    ["📈 Tổng quan hoạt động", "📅 Thời khóa biểu & Giờ dạy", "📝 Quản lý Nhiệm vụ", "🤖 Trợ lý AI Kiểm tra tài liệu"]
+    ["📈 Tổng quan hoạt động", "📝 Quản lý Nhiệm vụ", "🤖 Trợ lý AI Kiểm tra tài liệu"]
 )
 
 # --- CHỨC NĂNG 1: TỔNG QUAN ---
@@ -45,7 +37,7 @@ if menu == "📈 Tổng quan hoạt động":
     col3.metric("Chuyên đề & Soạn bài", "18 / 20", "Sắp hoàn thành")
     col4.metric("AI Xử lý tự động", "142 lần", "Tiết kiệm 15h")
 
-# --- CHỨC NĂNG 3: QUẢN LÝ NHIỆM VỤ ---
+# --- CHỨC NĂNG 2: QUẢN LÝ NHIỆM VỤ (Đã tối ưu hóa tự động) ---
 elif menu == "📝 Quản lý Nhiệm vụ":
     st.subheader("Theo dõi tiến độ tự động")
     
@@ -54,9 +46,6 @@ elif menu == "📝 Quản lý Nhiệm vụ":
         st.rerun()
 
     try:
-        import pandas as pd
-        from datetime import datetime
-        
         # Đọc dữ liệu phân công (NhiemVu) và danh sách nộp từ Form (Cautraloibieumau1)
         df_nv = load_data("NhiemVu")
         df_form = load_data("Cautraloibieumau1")
@@ -96,7 +85,7 @@ elif menu == "📝 Quản lý Nhiệm vụ":
 
         if not df_nv.empty:
             df_nv = df_nv.apply(xu_ly_dong_bo, axis=1)
-            # Tự động lược bỏ cột Link nếu lỡ có trong Sheet để giao diện gọn nhất
+            # Lược bỏ cột Link nếu có trong Sheet
             if 'LinkNop' in df_nv.columns:
                 df_nv = df_nv.drop(columns=['LinkNop'])
                 
@@ -104,7 +93,8 @@ elif menu == "📝 Quản lý Nhiệm vụ":
         
     except Exception as e:
         st.error(f"Lỗi hiển thị dữ liệu: {e}")
-# --- CHỨC NĂNG 4: TRỢ LÝ AI ---
+
+# --- CHỨC NĂNG 3: TRỢ LÝ AI ---
 elif menu == "🤖 Trợ lý AI Kiểm tra tài liệu":
     st.subheader("Trợ lý AI tự động rà soát đề thi và bài soạn")
     uploaded_file = st.file_uploader("Chọn file văn bản (.docx, .pdf)", type=["docx", "pdf", "txt"])
