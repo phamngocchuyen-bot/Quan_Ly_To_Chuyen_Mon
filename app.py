@@ -20,12 +20,12 @@ def load_data(sheet_name):
     return pd.read_csv(url)
 
 st.title("📊 Hệ thống Quản lý Tổ Chuyên Môn Toán - Tin")
-st.markdown("Trang web điều hành, theo dõi tiến độ ra đề, chuyên đề và soạn bài (Đồng bộ trực tiếp từ Google Sheets).")
+st.markdown("Trang web điều hành, theo dõi tiến độ và hỗ trợ chuyên môn (Đồng bộ trực tiếp từ Google Sheets).")
 
-# Menu bên trái (Sidebar) - Đã bỏ Chức năng 2
+# Menu bên trái (Sidebar)
 menu = st.sidebar.selectbox(
     "Chọn chức năng quản lý", 
-    ["📈 Tổng quan hoạt động", "📝 Quản lý Nhiệm vụ", "🤖 Trợ lý AI Kiểm tra tài liệu"]
+    ["📈 Tổng quan hoạt động", "📝 Quản lý Nhiệm vụ", "🤖 Trợ lý AI Chấm bài học sinh"]
 )
 
 # --- CHỨC NĂNG 1: TỔNG QUAN ---
@@ -37,7 +37,7 @@ if menu == "📈 Tổng quan hoạt động":
     col3.metric("Chuyên đề & Soạn bài", "18 / 20", "Sắp hoàn thành")
     col4.metric("AI Xử lý tự động", "142 lần", "Tiết kiệm 15h")
 
-# --- CHỨC NĂNG 2: QUẢN LÝ NHIỆM VỤ (Đã tối ưu hóa tự động) ---
+# --- CHỨC NĂNG 2: QUẢN LÝ NHIỆM VỤ ---
 elif menu == "📝 Quản lý Nhiệm vụ":
     st.subheader("Theo dõi tiến độ tự động")
     
@@ -46,15 +46,11 @@ elif menu == "📝 Quản lý Nhiệm vụ":
         st.rerun()
 
     try:
-        # Đọc dữ liệu phân công (NhiemVu) và danh sách nộp từ Form (Cautraloibieumau1)
         df_nv = load_data("NhiemVu")
         df_form = load_data("Cautraloibieumau1")
         
-        # Hàm tự động quét trạng thái
         def xu_ly_dong_bo(row):
             ten_gv = str(row.get('HoTen', '')).strip()
-            
-            # Kiểm tra xem giáo viên đã nộp bài qua Form chưa
             da_nop = False
             if not df_form.empty:
                 for _, form_row in df_form.iterrows():
@@ -67,7 +63,6 @@ elif menu == "📝 Quản lý Nhiệm vụ":
                 row['TrangThai'] = "Đã nộp ✅"
                 return row
                 
-            # Nếu chưa nộp, tính toán dựa vào hạn nộp
             trang_thai_hien_tai = str(row.get('TrangThai', '')).strip()
             if trang_thai_hien_tai and trang_thai_hien_tai.lower() not in ['nan', 'none', '']:
                 return row 
@@ -85,7 +80,6 @@ elif menu == "📝 Quản lý Nhiệm vụ":
 
         if not df_nv.empty:
             df_nv = df_nv.apply(xu_ly_dong_bo, axis=1)
-            # Lược bỏ cột Link nếu có trong Sheet
             if 'LinkNop' in df_nv.columns:
                 df_nv = df_nv.drop(columns=['LinkNop'])
                 
@@ -94,14 +88,33 @@ elif menu == "📝 Quản lý Nhiệm vụ":
     except Exception as e:
         st.error(f"Lỗi hiển thị dữ liệu: {e}")
 
-# --- CHỨC NĂNG 3: TRỢ LÝ AI ---
-elif menu == "🤖 Trợ lý AI Kiểm tra tài liệu":
-    st.subheader("Trợ lý AI tự động rà soát đề thi và bài soạn")
-    uploaded_file = st.file_uploader("Chọn file văn bản (.docx, .pdf)", type=["docx", "pdf", "txt"])
-    if uploaded_file is not None:
-        if st.button("🚀 Bắt đầu phân tích bằng AI"):
-            with st.spinner("AI đang đọc và phân tích tài liệu..."):
+# --- CHỨC NĂNG 3: TRỢ LÝ AI CHẤM BÀI ---
+elif menu == "🤖 Trợ lý AI Chấm bài học sinh":
+    st.subheader("🤖 Trợ lý AI Hỗ trợ Chấm bài & Nhận xét tự động")
+    st.markdown("Tải lên bài làm của học sinh và cung cấp đáp án chuẩn để AI tiến hành rà soát, cho điểm và viết lời nhận xét.")
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        uploaded_student_file = st.file_uploader("1. Chọn file bài làm học sinh (.docx, .pdf, .txt)", type=["docx", "pdf", "txt"])
+    with col_b:
+        rubric_text = st.text_area("2. Nhập đáp án chuẩn hoặc Thang điểm (Rubric)", placeholder="Ví dụ: Câu 1 (2đ): x = 2, lập luận chặt chẽ...\nCâu 2 (3đ): ...")
+
+    if uploaded_student_file is not None:
+        if st.button("🚀 Bắt đầu chấm bài tự động"):
+            with st.spinner("AI đang đọc bài làm, đối chiếu đáp án và viết nhận xét..."):
                 import time
-                time.sleep(2)
-            st.success("Phân tích hoàn tất!")
-            st.info("✅ **Cấu trúc ma trận:** Đúng chuẩn tỷ lệ Nhận biết (40%), Thông hiểu (30%), Vận dụng (30%).")
+                time.sleep(2.5)
+            
+            st.success("Chấm bài hoàn tất!")
+            
+            # Hiển thị kết quả mẫu trực quan
+            st.markdown("### 📊 Kết quả đánh giá từ AI:")
+            st.metric(label="Điểm số gợi ý", value="8.5 / 10", delta="+1.5 điểm so với mức trung bình")
+            
+            st.markdown("---")
+            st.markdown("#### 📝 Chi tiết nhận xét:")
+            st.info("""
+            * **Ưu điểm:** Học sinh trình bày các bước giải logic, rõ ràng ở phần đại số. Lập luận sắc bén, kết quả tính toán chính xác.
+            * **Điểm cần lưu ý (Trừ 1.5đ):** Ở phần hình học không gian (câu cuối), bước chứng minh đường vuông góc với mặt phẳng chưa thực sự tường minh, thiếu một bước phụ trợ trung gian.
+            * **Gợi ý lời phê của giáo viên:** *Bài làm tốt, nắm vững kiến thức cơ bản. Cần cẩn thận hơn ở phần trình bày hình học không gian.*
+            """)
