@@ -75,23 +75,32 @@ elif menu == "📚 Giao bài & Theo dõi nộp bài":
             df_hs['Lop'] = df_hs['Lop'].astype(str).str.replace('.0', '', regex=False).str.strip()
             df_bt['Lop'] = df_bt['Lop'].astype(str).str.replace('.0', '', regex=False).str.strip()
 
-            # Ghép nối dữ liệu
+            # Ghép nối dữ liệu học sinh và bài tập
             df_tong_hop = pd.merge(df_hs, df_bt, on='Lop', how='inner')
             
             if df_tong_hop.empty:
                 st.warning("⚠️ Không tìm thấy điểm chung (Lớp) giữa danh sách học sinh và bài tập được giao.")
             else:
+                # Xử lý tự động tìm cột tên học sinh trong bảng nộp bài từ Form
+                nop_name_col = None
+                if not df_nop.empty:
+                    df_nop = df_nop.rename(columns=lambda x: str(x).strip())
+                    for col in df_nop.columns:
+                        if 'ho' in col.lower() or 'tên' in col.lower() or 'hoten' in col.lower():
+                            nop_name_col = col
+                            break
+                    if not nop_name_col and len(df_nop.columns) > 1:
+                        nop_name_col = df_nop.columns[1] # Thường cột thứ 2 trong Form là họ tên
+
                 def xet_trang_thai(row):
                     ten_hs = str(row.get('HoTen', '')).strip()
-                    ten_bai = str(row.get('TenBaiTap', '')).strip()
                     
+                    # Kiểm tra xem tên học sinh có xuất hiện trong danh sách đã nộp qua Form hay không
                     da_nop = False
-                    if not df_nop.empty:
+                    if not df_nop.empty and nop_name_col:
                         for _, nop_row in df_nop.iterrows():
-                            nop_ten = str(nop_row.get('HoTen', nop_row.get('Họ và tên', ''))).strip()
-                            nop_bai = str(nop_row.get('TenBaiTap', nop_row.get('Tên bài tập', ''))).strip()
-                            
-                            if ten_hs.lower() in nop_ten.lower() and ten_bai.lower() in nop_bai.lower():
+                            nop_ten = str(nop_row.get(nop_name_col, '')).strip()
+                            if ten_hs.lower() in nop_ten.lower() or nop_ten.lower() in ten_hs.lower():
                                 da_nop = True
                                 break
                     
@@ -109,7 +118,7 @@ elif menu == "📚 Giao bài & Theo dõi nộp bài":
 
                 df_tong_hop['TrangThai'] = df_tong_hop.apply(xet_trang_thai, axis=1)
                 
-                # Rút gọn tên bài tập nếu quá dài (chỉ hiển thị tối đa 40 ký tự đầu + ...)
+                # Rút gọn tên bài tập hiển thị trên bảng cho gọn gàng
                 def rut_gon_ten(text):
                     text_str = str(text)
                     if len(text_str) > 40:
