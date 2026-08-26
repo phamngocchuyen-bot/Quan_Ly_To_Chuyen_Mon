@@ -45,15 +45,6 @@ if menu == "📈 Tổng quan hoạt động":
     col3.metric("Chuyên đề & Soạn bài", "18 / 20", "Sắp hoàn thành")
     col4.metric("AI Xử lý tự động", "142 lần", "Tiết kiệm 15h")
 
-# --- CHỨC NĂNG 2: THỜI KHÓA BIỂU & GIỜ DẠY ---
-elif menu == "📅 Thời khóa biểu & Giờ dạy":
-    st.subheader("Quản lý Thời khóa biểu & Giờ chuẩn quy đổi (Đọc từ Sheet: NhanSu)")
-    try:
-        df_ns = load_data("NhanSu")
-        st.dataframe(df_ns, use_container_width=True)
-    except Exception as e:
-        st.error(f"Không thể đọc dữ liệu từ tab 'NhanSu'. Hãy kiểm tra lại tên tab hoặc quyền chia sẻ công khai của Google Sheet. Lỗi: {e}")
-
 # --- CHỨC NĂNG 3: QUẢN LÝ NHIỆM VỤ ---
 elif menu == "📝 Quản lý Nhiệm vụ":
     st.subheader("Theo dõi tiến độ tự động")
