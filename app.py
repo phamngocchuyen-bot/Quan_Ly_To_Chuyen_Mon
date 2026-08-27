@@ -177,7 +177,7 @@ elif menu == "🤖 Trợ lý AI Chấm bài tự động":
     st.subheader("🤖 Hệ thống AI Tự động chấm bài theo Đáp án chuẩn")
     st.markdown("Hệ thống đọc file đáp án, đối chiếu với bài làm của học sinh để chấm điểm và đưa ra nhận xét chi tiết.")
 
-    api_key_input = st.text_input("AQ.Ab8RN6JgkmoEpkiqS6BRbQmTRkGsy2d_4XsaPT8yHZSvHvUcVQ", type="password", placeholder="AQ... hoặc AIzaSy...")
+    api_key_input = st.text_input("Nhập Google Gemini API Key", type="password", placeholder="Nhập API Key (bắt đầu bằng AIzaSy hoặc AQ)...", key="api_key_cham_bai")
 
     if "answer_filename" not in st.session_state:
         st.session_state.answer_filename = None
@@ -206,7 +206,7 @@ elif menu == "🤖 Trợ lý AI Chấm bài tự động":
         else:
             with st.spinner("Hệ thống đang quét bài nộp từ Form và đối chiếu với đáp án chuẩn..."):
                 import time
-                time.sleep(2.0)
+                time.sleep(1.0)
             
             try:
                 df_nop_bai = load_data("NopBaiHS")
@@ -216,43 +216,63 @@ elif menu == "🤖 Trợ lý AI Chấm bài tự động":
                 else:
                     danh_sach_ket_qua = []
                     
-                    # Thử gọi Gemini API nếu người dùng có nhập key chuẩn AIzaSy, nếu dùng key khác hoặc lỗi sẽ tự động dùng chế độ chấm thông minh bám sát đáp án
                     dung_api_that = False
-                    if api_key_input.strip().startswith("AIzaSy"):
+                    model = None
+                    if api_key_input.strip().startswith("AIzaSy") or api_key_input.strip().startswith("AQ"):
                         try:
                             import google.generativeai as genai
                             genai.configure(api_key=api_key_input.strip())
-                            model = genai.GenerativeModel('gemini-3.5-flash')
+                            model = genai.GenerativeModel('gemini-1.5-flash')
                             dung_api_that = True
-                        except:
+                        except Exception:
                             dung_api_that = False
-
-                    nhan_xet_chuyen_mon = [
-                        ("9.5 / 10", "Lập luận sắc bén, bám sát các bước trong biểu điểm chuẩn của đề bài."),
-                        ("9.0 / 10", "Trình bày rõ ràng, tính toán chính xác, thiếu sót một bước giải thích nhỏ không đáng kể."),
-                        ("8.5 / 10", "Phương pháp giải đúng đắn, kết quả hợp lý. Cần lưu ý căn chỉnh lại trình bày."),
-                        ("10 / 10", "Bài làm xuất sắc, hoàn toàn khớp với đáp án chuẩn, lời giải sáng tạo."),
-                        ("8.0 / 10", "Hướng đi đúng, tuy nhiên ở phần biến đổi trung gian có chút nhầm lẫn nhỏ.")
-                    ]
 
                     for index, row in df_nop_bai.iterrows():
                         ten_hs = str(row.get('HoTen', row.iloc[1] if len(row) > 1 else f"Học sinh {index+1}")).strip()
                         ten_bai = str(row.get('TenBaiTap', 'Bài tập chuyên đề')).strip()
                         link_bai = str(row.get('LinkBaiLam', '#')).strip()
+                        
+                        # LẤY NỘI DUNG BÀI LÀM CỦA HỌC SINH (Thầy có thể đổi tên cột 'NoiDung', 'BaiLam', 'CauTraLoi' cho khớp với Google Sheets của thầy)
+                        noi_dung_hs = str(row.get('NoiDung', row.get('BaiLam', row.get('CauTraLoi', 'Không có nội dung văn bản trực tiếp')))).strip()
 
                         diem_str, nhan_xet_str = "", ""
                         
-                        if dung_api_that:
+                        if dung_api_that and model:
                             try:
-                                prompt = f"Dựa vào đáp án: {st.session_state.answer_content[:500]}, hãy chấm điểm bài tập cho học sinh {ten_hs}. Chỉ trả về định dạng dòng 1: Điểm ([số]/10), dòng 2: Nhận xét ([lời nhận xét])."
+                                prompt = f"""Bạn là một giáo viên bộ môn chấm bài rất nghiêm khắc, khách quan và công tâm.
+        
+--- ĐÁP ÁN CHUẨN VÀ BIỂU ĐIỂM ---
+{st.session_state.answer_content}
+
+--- BÀI LÀM CỦA HỌC SINH ({ten_hs}) ---
+{noi_dung_hs}
+
+--- YÊU CẦU CHẤM ĐIỂM ---
+1. Đối chiếu kỹ lưỡng nội dung bài làm của học sinh với đáp án chuẩn ở trên.
+2. QUY TẮC 0 ĐIỂM NGHIÊM NGẶT: Nếu bài làm hoàn toàn lạc đề, không đúng trọng tâm yêu cầu của đề bài, viết linh tinh hoặc không liên quan -> BẮT BUỘC CHO 0 ĐIỂM (Không châm chước, không tìm ý phụ vớt vát).
+3. Chỉ cho điểm cao nếu bài làm giải quyết đúng bản chất yêu cầu của đáp án chuẩn.
+4. Trả về đúng định dạng 2 dòng duy nhất:
+Điểm: [số điểm từ 0 đến 10]/10
+Nhận xét: [Nhận xét chi tiết, chỉ rõ chỗ đúng/sai]
+"""
                                 res = model.generate_content(prompt)
                                 lines = res.text.strip().split('\n')
-                                diem_str = lines[0].replace("Điểm:", "").strip()
-                                nhan_xet_str = lines[1].replace("Nhận xét:", "").strip()
-                            except:
-                                diem_str, nhan_xet_str = nhan_xet_chuyen_mon[index % len(nhan_xet_chuyen_mon)]
+                                
+                                line_diem = [l for l in lines if 'Điểm:' in l or 'diem:' in l.lower()]
+                                line_nx = [l for l in lines if 'Nhận xét:' in l or 'nhan xet:' in l.lower()]
+                                
+                                if line_diem and line_nx:
+                                    diem_str = line_diem[0].replace("Điểm:", "").replace("điểm:", "").strip()
+                                    nhan_xet_str = line_nx[0].replace("Nhận xét:", "").replace("nhận xét:", "").strip()
+                                else:
+                                    diem_str = "0/10"
+                                    nhan_xet_str = res.text.strip()[:200]
+                            except Exception as err:
+                                diem_str = "0/10"
+                                nhan_xet_str = f"Lỗi gọi API: {str(err)}"
                         else:
-                            diem_str, nhan_xet_str = nhan_xet_chuyen_mon[index % len(nhan_xet_chuyen_mon)]
+                            diem_str = "0/10"
+                            nhan_xet_str = "Chưa nhập API Key Google Gemini hợp lệ."
 
                         danh_sach_ket_qual = {
                             "Học sinh": ten_hs,
@@ -265,7 +285,7 @@ elif menu == "🤖 Trợ lý AI Chấm bài tự động":
                     
                     st.session_state.df_kq_cache = pd.DataFrame(danh_sach_ket_qua)
                     st.success(f"🎉 Hoàn tất chấm điểm thành công cho {len(df_nop_bai)} học sinh!")
-                        
+                    
             except Exception as e:
                 st.error(f"Lỗi xử lý chấm bài: {e}")
 
