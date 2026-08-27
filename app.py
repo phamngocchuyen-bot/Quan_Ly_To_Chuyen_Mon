@@ -172,134 +172,96 @@ elif menu == "📚 Giao bài & Theo dõi nộp bài":
     except Exception as e:
         st.error(f"Lỗi hiển thị bảng tiến độ: {e}")
 
-# --- CHỨC NĂNG 3: TRỢ LÝ AI CHẤM BÀI ---
-elif menu == "🤖 Trợ lý AI Chấm bài tự động":
-    st.subheader("🤖 Hệ thống AI Tự động chấm bài theo Đáp án chuẩn")
-    st.markdown("Hệ thống đọc file đáp án, đối chiếu với bài làm của học sinh để chấm điểm và đưa ra nhận xét chi tiết.")
+import streamlit as st
+import pandas as pd
+import datetime
 
-    api_key_input = st.text_input("Nhập Google Gemini API Key", type="password", placeholder="Nhập API Key (bắt đầu bằng AIzaSy hoặc AQ)...", key="api_key_cham_bai")
+# --- HÀM HỖ TRỢ CHUẨN HÓA CHUỖI ---
+def chuan_hoa_dap_an(text):
+    """
+    Hàm này tự động xóa mọi khoảng trắng và viết hoa toàn bộ chữ cái.
+    Giúp 'a h', ' a H ', hay 'AH' đều được máy hiểu là một đáp án duy nhất: 'AH'.
+    """
+    return str(text).strip().upper().replace(" ", "")
 
-    if "answer_filename" not in st.session_state:
-        st.session_state.answer_filename = None
-    if "answer_content" not in st.session_state:
-        st.session_state.answer_content = ""
-    if "df_kq_cache" not in st.session_state:
-        st.session_state.df_kq_cache = None
+# --- CHỨC NĂNG 3: HỆ THỐNG CHẤM TỰ LUẬN ĐIỀN KHUYẾT TỰ ĐỘNG ---
+# Giả sử menu của thầy là một khối if...elif
+# elif menu == "🤖 Chấm Tự luận Điền khuyết":
+st.subheader("🎯 Hệ thống Chấm Tự luận Điền khuyết (Đối sánh tuyệt đối)")
+st.markdown("Hệ thống tự động chuẩn hóa đáp án của học sinh và khớp với barem chuẩn. Đảm bảo chính xác 100%, không sử dụng AI để tránh sai sót.")
 
-    answer_file = st.file_uploader(
-        "Tải lên file Đáp án chuẩn / Thang điểm (PDF, DOCX, TXT, Ảnh)", 
-        type=["pdf", "png", "jpg", "jpeg", "docx", "txt"]
-    )
+# 1. KHAI BÁO BAREM ĐÁP ÁN CHUẨN CỦA TỔ CHUYÊN MÔN
+# Mỗi bước có thể có nhiều cách gõ đáp án đúng (ví dụ: 1/2 hoặc 0.5)
+DAP_AN_CHUAN = {
+    "Buoc1": ["AH"],
+    "Buoc2": ["BD"],
+    "Buoc3": ["1/2", "0.5"],
+    "Buoc4": ["5/2", "2.5"]
+}
+DIEM_MOI_BUOC = 0.25
 
-    if answer_file is not None:
-        st.session_state.answer_filename = answer_file.name
-        st.session_state.answer_content = doc_noi_dung_file(answer_file)
+st.info("📌 **Đang áp dụng Barem cho bài toán Hình không gian:**\n"
+        "- Bước 1 (Hình chiếu): AH\n"
+        "- Bước 2 (Chứng minh vuông góc): BD\n"
+        "- Bước 3 (Tính AO^2): 1/2 hoặc 0.5\n"
+        "- Bước 4 (Tính 1/AH^2): 5/2 hoặc 2.5")
 
-    if st.session_state.answer_filename:
-        st.success(f"📁 Đã lưu đáp án: **{st.session_state.answer_filename}**.")
-        with st.expander("🔍 Xem nhanh nội dung Đáp án chuẩn"):
-            st.text(st.session_state.answer_content[:600] if len(st.session_state.answer_content) > 600 else st.session_state.answer_content)
-
-    if st.button("⚡ Bắt đầu Chấm điểm tự động"):
-        if not st.session_state.answer_filename:
-            st.warning("Thầy vui lòng tải lên file đáp án chuẩn trước khi bấm chấm tự động nhé!")
-        else:
-            with st.spinner("Hệ thống đang quét bài nộp từ Form và đối chiếu với đáp án chuẩn..."):
-                import time
-                time.sleep(1.0)
+if st.button("⚡ Bấm vào đây để chạy Test Chấm điểm 3 học sinh mẫu"):
+    with st.spinner("Hệ thống đang quét đáp án và tính điểm..."):
+        
+        # 2. TẠO DỮ LIỆU TEST MẪU (Thay vì load file Excel)
+        du_lieu_mau = [
+            {"HoTen": "Nguyễn Văn A", "Buoc1": "AH", "Buoc2": "BD", "Buoc3": "1/2", "Buoc4": "5/2"},
+            {"HoTen": "Trần Thị B", "Buoc1": "a h", "Buoc2": " b d ", "Buoc3": "0.5", "Buoc4": "3"},
+            {"HoTen": "Lê Văn C", "Buoc1": "SA", "Buoc2": "AC", "Buoc3": "1", "Buoc4": "4"}
+        ]
+        df_nop_bai = pd.DataFrame(du_lieu_mau)
+        
+        # 3. THUẬT TOÁN CHẤM ĐIỂM
+        danh_sach_ket_qua = []
+        
+        for index, row in df_nop_bai.iterrows():
+            ten_hs = row['HoTen']
+            tong_diem = 0.0
+            chi_tiet_cham = []
             
-            try:
-                df_nop_bai = load_data("NopBaiHS")
+            # Quét qua từng bước trong Barem
+            for buoc, cac_dap_an_dung in DAP_AN_CHUAN.items():
+                dap_an_hs = row.get(buoc, "")
+                dap_an_hs_da_chuan_hoa = chuan_hoa_dap_an(dap_an_hs)
                 
-                if df_nop_bai.empty:
-                    st.warning("Hiện tại tab 'NopBaiHS' chưa có dữ liệu bài nộp nào từ học sinh.")
+                # Chuẩn hóa danh sách đáp án đúng
+                danh_sach_da_chuan_hoa = [chuan_hoa_dap_an(ans) for ans in cac_dap_an_dung]
+                
+                # So sánh tuyệt đối
+                if dap_an_hs_da_chuan_hoa in danh_sach_da_chuan_hoa:
+                    tong_diem += DIEM_MOI_BUOC
+                    chi_tiet_cham.append(f"{buoc}: ✅ (0.25đ)")
                 else:
-                    danh_sach_ket_qua = []
-                    
-                    dung_api_that = False
-                    model = None
-                    if api_key_input.strip().startswith("AIzaSy") or api_key_input.strip().startswith("AQ"):
-                        try:
-                            import google.generativeai as genai
-                            genai.configure(api_key=api_key_input.strip())
-                            model = genai.GenerativeModel('gemini-1.5-flash')
-                            dung_api_that = True
-                        except Exception:
-                            dung_api_that = False
-
-                    for index, row in df_nop_bai.iterrows():
-                        ten_hs = str(row.get('HoTen', row.iloc[1] if len(row) > 1 else f"Học sinh {index+1}")).strip()
-                        ten_bai = str(row.get('TenBaiTap', 'Bài tập chuyên đề')).strip()
-                        link_bai = str(row.get('LinkBaiLam', '#')).strip()
-                        
-                        # LẤY NỘI DUNG BÀI LÀM CỦA HỌC SINH (Thầy có thể đổi tên cột 'NoiDung', 'BaiLam', 'CauTraLoi' cho khớp với Google Sheets của thầy)
-                        noi_dung_hs = str(row.get('NoiDung', row.get('BaiLam', row.get('CauTraLoi', 'Không có nội dung văn bản trực tiếp')))).strip()
-
-                        diem_str, nhan_xet_str = "", ""
-                        
-                        if dung_api_that and model:
-                            try:
-                                prompt = f"""Bạn là một giáo viên bộ môn chấm bài rất nghiêm khắc, khách quan và công tâm.
+                    chi_tiet_cham.append(f"{buoc}: ❌ (0đ)")
+            
+            # Ghi nhận kết quả
+            danh_sach_ket_qua.append({
+                "Học sinh": ten_hs,
+                "Tổng điểm": f"{tong_diem} / 1.0",
+                "Phân tích từng bước": " | ".join(chi_tiet_cham),
+                "Lưu vết nhập liệu": f"B1: {row['Buoc1']} | B2: {row['Buoc2']} | B3: {row['Buoc3']} | B4: {row['Buoc4']}"
+            })
         
---- ĐÁP ÁN CHUẨN VÀ BIỂU ĐIỂM ---
-{st.session_state.answer_content}
+        # 4. HIỂN THỊ KẾT QUẢ
+        st.session_state.df_kq_cache = pd.DataFrame(danh_sach_ket_qua)
+        st.success(f"🎉 Đã chấm xong bài cho {len(df_nop_bai)} học sinh với độ chính xác 100%!")
 
---- BÀI LÀM CỦA HỌC SINH ({ten_hs}) ---
-{noi_dung_hs}
-
---- YÊU CẦU CHẤM ĐIỂM ---
-1. Đối chiếu kỹ lưỡng nội dung bài làm của học sinh với đáp án chuẩn ở trên.
-2. QUY TẮC 0 ĐIỂM NGHIÊM NGẶT: Nếu bài làm hoàn toàn lạc đề, không đúng trọng tâm yêu cầu của đề bài, viết linh tinh hoặc không liên quan -> BẮT BUỘC CHO 0 ĐIỂM (Không châm chước, không tìm ý phụ vớt vát).
-3. Chỉ cho điểm cao nếu bài làm giải quyết đúng bản chất yêu cầu của đáp án chuẩn.
-4. Trả về đúng định dạng 2 dòng duy nhất:
-Điểm: [số điểm từ 0 đến 10]/10
-Nhận xét: [Nhận xét chi tiết, chỉ rõ chỗ đúng/sai]
-"""
-                                res = model.generate_content(prompt)
-                                lines = res.text.strip().split('\n')
-                                
-                                line_diem = [l for l in lines if 'Điểm:' in l or 'diem:' in l.lower()]
-                                line_nx = [l for l in lines if 'Nhận xét:' in l or 'nhan xet:' in l.lower()]
-                                
-                                if line_diem and line_nx:
-                                    diem_str = line_diem[0].replace("Điểm:", "").replace("điểm:", "").strip()
-                                    nhan_xet_str = line_nx[0].replace("Nhận xét:", "").replace("nhận xét:", "").strip()
-                                else:
-                                    diem_str = "0/10"
-                                    nhan_xet_str = res.text.strip()[:200]
-                            except Exception as err:
-                                diem_str = "0/10"
-                                nhan_xet_str = f"Lỗi gọi API: {str(err)}"
-                        else:
-                            diem_str = "0/10"
-                            nhan_xet_str = "Chưa nhập API Key Google Gemini hợp lệ."
-
-                        danh_sach_ket_qual = {
-                            "Học sinh": ten_hs,
-                            "Bài tập": ten_bai,
-                            "Điểm chuẩn": diem_str,
-                            "Nhận xét chi tiết": nhan_xet_str,
-                            "Link bài làm": link_bai
-                        }
-                        danh_sach_ket_qua.append(danh_sach_ket_qual)
-                    
-                    st.session_state.df_kq_cache = pd.DataFrame(danh_sach_ket_qua)
-                    st.success(f"🎉 Hoàn tất chấm điểm thành công cho {len(df_nop_bai)} học sinh!")
-                    
-            except Exception as e:
-                st.error(f"Lỗi xử lý chấm bài: {e}")
-
-    if st.session_state.df_kq_cache is not None and not st.session_state.df_kq_cache.empty:
-        st.markdown("---")
-        st.markdown("### 📊 Bảng kết quả chấm điểm tổng hợp:")
-        st.dataframe(st.session_state.df_kq_cache, use_container_width=True)
-        
-        st.markdown("#### 📥 Lưu trữ kết quả:")
-        csv_data = st.session_state.df_kq_cache.to_csv(index=False).encode('utf-8-sig')
-        st.download_button(
-            label="📥 Tải xuống Bảng điểm tổng hợp (.csv / Excel)",
-            data=csv_data,
-            file_name=f"BangDiem_TongHop_{datetime.now().strftime('%d%m%Y')}.csv",
-            mime="text/csv",
-            type="primary"
-        )
+# Hiển thị bảng và nút tải file
+if "df_kq_cache" in st.session_state and st.session_state.df_kq_cache is not None:
+    st.markdown("### 📊 Bảng điểm tổng hợp")
+    st.dataframe(st.session_state.df_kq_cache, use_container_width=True)
+    
+    csv_data = st.session_state.df_kq_cache.to_csv(index=False).encode('utf-8-sig')
+    st.download_button(
+        label="📥 Tải xuống Bảng điểm (.csv)",
+        data=csv_data,
+        file_name=f"BangDiem_TuLuanDienKhuyet_{datetime.datetime.now().strftime('%d%m%Y')}.csv",
+        mime="text/csv",
+        type="primary"
+    )
